@@ -30,7 +30,7 @@ Siga as instruções abaixo para colocar a aplicação Model Manager em funciona
 Abra o terminal e navegue até o diretório onde está o Dockerfile. Execute o comando abaixo para construir a imagem Docker do projeto:
 
 ```bash
-docker build -t inadimplencia .
+docker build -t propensao-inadimplencia .
 ```
 
 Depois execute
