@@ -38,10 +38,10 @@ def train_and_save_model(X_train, y_train, filepath='models/model.pkl'):
 
     # Tuning de Hiperparâmetros
     param_grid = {
-        'model__n_estimators': [50, 100, 200],
-        'model__max_depth': [None, 10, 20],
-        'model__min_samples_split': [2, 5, 10],
-        'model__min_samples_leaf': [1, 2, 4]
+        'model__n_estimators': [50, 100],
+        'model__max_depth': [None, 10],
+        'model__min_samples_split': [2, 5],
+        'model__min_samples_leaf': [1, 2]
     }
     grid_search = GridSearchCV(pipeline, param_grid, cv=5, scoring='roc_auc')
     grid_search.fit(X_train_resampled, y_train_resampled)
