@@ -1,17 +1,25 @@
-# Use uma imagem base do Python
+# Use a imagem base do Python
 FROM python:3.9-slim
 
-# Defina o diretório de trabalho como /app
+# Define o diretório de trabalho dentro do contêiner
 WORKDIR /app
+
+# Copia os arquivos do diretório atual para o diretório de trabalho no contêiner
+COPY . .
 
 # Copie o arquivo de requisitos para o contêiner
 COPY requirements.txt .
 
-# Instale as dependências do Python a partir do arquivo requirements.txt
+# Instala as dependências do aplicativo Flask a partir do arquivo requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copie os arquivos necessários para o contêiner
-COPY . /app
+# Define variáveis de ambiente para Flask
+ENV FLASK_APP=app.py
+ENV FLASK_RUN_HOST=0.0.0.0
+ENV FLASK_RUN_PORT=5001
 
-# Comando para iniciar o seu aplicativo Flask na porta 5001 e somente localmente
-CMD ["python", "app.py", "--host=127.0.0.1", "--port=5001"]
+# Expõe a porta do aplicativo Flask
+EXPOSE 5001
+
+# Comando para executar o aplicativo Flask quando o contêiner for iniciado
+CMD ["flask", "run", "--host=0.0.0.0", "--port=5001"]
