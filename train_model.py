@@ -1,45 +1,23 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
+import numpy as np
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import classification_report, roc_auc_score
 import joblib
-
+import os
 
 def load_data(filepath):
     """Carrega dados de um arquivo CSV."""
     data = pd.read_csv(filepath)
     return data
 
-
 def preprocess_data(data):
     """Pre-processa os dados substituindo valores ausentes e convertendo categorias em variáveis dummy."""
-    # Separa os recursos numéricos e categóricos
-    numerical_features = data.select_dtypes(include=['float64', 'int64'])
-    categorical_features = data.select_dtypes(include=['object'])
-
-    # Imputa valores ausentes nos recursos numéricos com a média
-    imputer_numerical = SimpleImputer(strategy='mean')
-    numerical_imputed = imputer_numerical.fit_transform(numerical_features)
-
-    # Converte o array resultante de volta em um DataFrame
-    numerical_processed = pd.DataFrame(numerical_imputed, columns=numerical_features.columns)
-
-    # Imputa valores ausentes nos recursos categóricos com a moda (valor mais comum)
-    imputer_categorical = SimpleImputer(strategy='most_frequent')
-    categorical_imputed = imputer_categorical.fit_transform(categorical_features)
-
-    # Converte o array resultante de volta em um DataFrame
-    categorical_processed = pd.DataFrame(categorical_imputed, columns=categorical_features.columns)
-
-    # Convertendo categorias em variáveis dummy para recursos categóricos
-    categorical_processed = pd.get_dummies(categorical_processed, drop_first=True)
-
-    # Combina os DataFrames processados
-    data_processed = pd.concat([numerical_processed, categorical_processed], axis=1)
-
-    return data_processed
-
+    data.ffill(inplace=True)
+    data = pd.get_dummies(data, drop_first=True)
+    return data
 
 def split_data(data):
     """Divide os dados em conjuntos de treino e teste."""
@@ -47,20 +25,32 @@ def split_data(data):
     y = data['Status'].astype(int)
     return train_test_split(X, y, test_size=0.2, random_state=42)
 
-
 def train_and_save_model(X_train, y_train, filepath='models/model.pkl'):
-    """Treina o modelo e salva o modelo."""
-    model = RandomForestClassifier(class_weight='balanced', random_state=42, n_jobs=-1)
-    model.fit(X_train, y_train)
+    """Treina o modelo e salva o modelo, o scaler e as colunas."""
+    scaler = StandardScaler()
+    imputer = SimpleImputer(strategy='mean')
+    X_train_imputed = imputer.fit_transform(X_train)
+    X_train_scaled = scaler.fit_transform(X_train_imputed)
 
-    # Salvando o modelo
-    joblib.dump(model, filepath)
+    # Usando balanceamento de classes
+    class_weight = 'balanced'  # Isso ajusta os pesos inversamente proporcionais às frequências de classe
+    model = LogisticRegression(class_weight=class_weight, max_iter=1000)
 
-    # Avaliando o modelo
-    predictions = model.predict(X_train)
+    model.fit(X_train_scaled, y_train)
+    predictions = model.predict(X_train_scaled)
+
     print("Classification Report:\n", classification_report(y_train, predictions))
-    print("ROC AUC score:", roc_auc_score(y_train, model.predict_proba(X_train)[:, 1]))
+    print("ROC AUC score:", roc_auc_score(y_train, model.predict_proba(X_train_scaled)[:, 1]))
 
+    # Validando o modelo com validação cruzada
+    scores = cross_val_score(model, X_train_scaled, y_train, cv=5, scoring='roc_auc')
+    print("Cross-validated AUC scores:", scores)
+
+    # Salvando o modelo, scaler e colunas
+    joblib.dump(model, filepath)
+    joblib.dump(scaler, 'models/scaler.pkl')
+    joblib.dump(imputer, 'models/imputer.pkl')
+    joblib.dump(X_train.columns, 'models/model_columns.pkl')
 
 def main():
     """Função principal para executar as etapas do processo."""
@@ -68,8 +58,7 @@ def main():
     data_processed = preprocess_data(data)
     X_train, X_test, y_train, y_test = split_data(data_processed)
     train_and_save_model(X_train, y_train)
-    print("Model saved successfully.")
-
+    print("Model, scaler, and columns saved successfully.")
 
 if __name__ == "__main__":
     main()
