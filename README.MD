@@ -36,5 +36,5 @@ docker build -t inadimplencia .
 Depois execute
 
 ```bash
-docker run -d -p 5001:5001 inadimplencia
+docker run -d -p 5001:5001 --network minha-rede propensao-inadimplencia
 ```
