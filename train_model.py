@@ -1,12 +1,11 @@
 import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.ensemble import RandomForestClassifier
+from imblearn.over_sampling import RandomOverSampler
+from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import classification_report, roc_auc_score
 import joblib
-import os
 
 def load_data(filepath):
     """Carrega dados de um arquivo CSV."""
@@ -26,31 +25,35 @@ def split_data(data):
     return train_test_split(X, y, test_size=0.2, random_state=42)
 
 def train_and_save_model(X_train, y_train, filepath='models/model.pkl'):
-    """Treina o modelo e salva o modelo, o scaler e as colunas."""
-    scaler = StandardScaler()
-    imputer = SimpleImputer(strategy='mean')
-    X_train_imputed = imputer.fit_transform(X_train)
-    X_train_scaled = scaler.fit_transform(X_train_imputed)
+    """Treina o modelo e salva o modelo."""
+    # Balanceamento de classes usando oversampling
+    oversampler = RandomOverSampler(random_state=42)
+    X_train_resampled, y_train_resampled = oversampler.fit_resample(X_train, y_train)
 
-    # Usando balanceamento de classes
-    class_weight = 'balanced'  # Isso ajusta os pesos inversamente proporcionais às frequências de classe
-    model = LogisticRegression(class_weight=class_weight, max_iter=1000)
+    # Definindo o pipeline com imputação e modelo RandomForestClassifier
+    pipeline = Pipeline([
+        ('imputer', SimpleImputer(strategy='mean')),
+        ('model', RandomForestClassifier(class_weight='balanced', random_state=42))
+    ])
 
-    model.fit(X_train_scaled, y_train)
-    predictions = model.predict(X_train_scaled)
+    # Tuning de Hiperparâmetros
+    param_grid = {
+        'model__n_estimators': [50, 100, 200],
+        'model__max_depth': [None, 10, 20],
+        'model__min_samples_split': [2, 5, 10],
+        'model__min_samples_leaf': [1, 2, 4]
+    }
+    grid_search = GridSearchCV(pipeline, param_grid, cv=5, scoring='roc_auc')
+    grid_search.fit(X_train_resampled, y_train_resampled)
+    best_model = grid_search.best_estimator_
 
-    print("Classification Report:\n", classification_report(y_train, predictions))
-    print("ROC AUC score:", roc_auc_score(y_train, model.predict_proba(X_train_scaled)[:, 1]))
+    # Salvando o modelo
+    joblib.dump(best_model, filepath)
 
-    # Validando o modelo com validação cruzada
-    scores = cross_val_score(model, X_train_scaled, y_train, cv=5, scoring='roc_auc')
-    print("Cross-validated AUC scores:", scores)
-
-    # Salvando o modelo, scaler e colunas
-    joblib.dump(model, filepath)
-    joblib.dump(scaler, 'models/scaler.pkl')
-    joblib.dump(imputer, 'models/imputer.pkl')
-    joblib.dump(X_train.columns, 'models/model_columns.pkl')
+    # Avaliando o modelo
+    predictions = best_model.predict(X_train_resampled)
+    print("Classification Report:\n", classification_report(y_train_resampled, predictions))
+    print("ROC AUC score:", roc_auc_score(y_train_resampled, best_model.predict_proba(X_train_resampled)[:, 1]))
 
 def main():
     """Função principal para executar as etapas do processo."""
@@ -58,7 +61,7 @@ def main():
     data_processed = preprocess_data(data)
     X_train, X_test, y_train, y_test = split_data(data_processed)
     train_and_save_model(X_train, y_train)
-    print("Model, scaler, and columns saved successfully.")
+    print("Model saved successfully.")
 
 if __name__ == "__main__":
     main()
